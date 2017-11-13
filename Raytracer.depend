@@ -1,0 +1,15 @@
+# depslib dependency file v1.0
+1510377899 source:/home/adrianno/Documents/C-C++/Raytracer_Sistemas_Embarcados/Raytracer_C/Raytracer/helper.c
+
+1510377993 source:/home/adrianno/Documents/C-C++/Raytracer_Sistemas_Embarcados/Raytracer_C/Raytracer/color.c
+
+1510377899 /home/adrianno/Documents/C-C++/Raytracer_Sistemas_Embarcados/Raytracer_C/Raytracer/helper.c
+
+1510458646 source:/home/adrianno/Documents/C-C++/Raytracer_Sistemas_Embarcados/Raytracer_C/Raytracer/main.c
+	<stdio.h>
+	<stdlib.h>
+	<math.h>
+
+1510377950 /home/adrianno/Documents/C-C++/Raytracer_Sistemas_Embarcados/Raytracer_C/Raytracer/color.c
+	<math.h>
+
