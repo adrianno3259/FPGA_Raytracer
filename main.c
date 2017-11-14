@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 //#include "helper.c"
-#include "image.h"
+//#include "image.h"
 
 #define db_color(A) fprintf(stderr, "%s = (%f, %f, %f)\n", #A, A.r, A.g, A.b)
 
@@ -41,7 +41,7 @@ Color colorMultiply(Color c1, Color c2){
     return (newColor(c1.r * c2.r, c1.g * c2.g, c1.b * c2.b));
 }
 
-Color colorScalarMultiply(Color c, double k){
+Color colorScalarMultiply(double k, Color c){
     return newColor(c.r*k, c.g*k, c.b*k);
 }
 
@@ -65,7 +65,7 @@ void test_color(){
     db_color(colorClamp(c3));
     Color div1 = newColor(0.5, 2, 1), div2 = newColor(1, 2, 4);
     double k = 2, p = 2;
-    db_color(colorScalarMultiply(div1, k));
+    db_color(colorScalarMultiply( k,div1));
     db_color(colorDivide(div2, div1));
     db_color(colorPower(div2, p));
 }
@@ -90,11 +90,11 @@ Vec3d vecSubtract(Vec3d a, Vec3d b){
     return vecNew(a.x - b.x, a.y - b.y, a.z - b.z);
 }
 
-Vec3d vecScalarMultiply(Vec3d v, double k){
+Vec3d vecScalarMultiply(double k, Vec3d v){
     return vecNew(k*v.x, k*v.y, k*v.z);
 }
 
-Vec3d vecScalarDivide(Vec3d v, double k){
+Vec3d vecScalarDivide(double k, Vec3d v){
     return vecNew(v.x/k, v.y/k, v.z/k);
 }
 
@@ -119,7 +119,7 @@ Vec3d vecInvert(Vec3d v){
 }
 
 Vec3d vecNormalize(Vec3d v){
-    return vecScalarDivide(v, vecLength(v));
+    return vecScalarDivide(vecLength(v), v);
 }
 
 /********************** RAY *******************************/
@@ -135,8 +135,69 @@ Ray rayNew(Vec3d o, Vec3d d){
 }
 
 Vec3d rayPoint(Ray r, double t){
-    return vecAdd(r.origin, vecScalarMultiply(r.direction, t));
+    return vecAdd(r.origin, vecScalarMultiply(t, r.direction));
 }
+
+
+/*************************** IMAGE ***********************************/
+
+
+typedef struct{
+    int w, h;
+    Color** pixels;
+} ImagePPM;
+
+ImagePPM imageNew(int w, int h){
+    ImagePPM res; int i;
+    res.w = w, res.h = h;
+    res.pixels = (Color**) malloc(h*sizeof(Color*));
+    for(i = 0; i < h; i++)
+        res.pixels[i] = (Color*) malloc(w*sizeof(Color));
+    return res;
+}
+
+void imageSetPixel(ImagePPM im, int i, int j, double r, double g, double b){
+    im.pixels[i][j].r = r;
+    im.pixels[i][j].g = g;
+    im.pixels[i][j].b = b;
+}
+
+void imageSave(ImagePPM im)
+{
+    FILE* file = fopen("image.ppm", "wb");
+
+    fprintf(file, "P6\n%d %d\n255\n", im.w, im.h);
+    //file<<'P'<<'6'<<'\n'<<im.w<<' '<<im.h<<'\n'<<'2'<<'5'<<'5'<<'\n';
+    for(int i = 0; i < im.h; i++)
+    for(int j = 0; j < im.w; j++)
+    {
+        char col[3];
+        col[0] = 255*im.pixels[i][j].r;
+        col[1] = 255*im.pixels[i][j].g;
+        col[2] = 255*im.pixels[i][j].b;
+
+        fwrite(col, sizeof(char), 3, file);
+    }
+    fclose(file);
+}
+
+
+
+
+/********************* CAMERA **************************/
+
+
+typedef struct{
+    Vec3d eyePoint, lookPoint, upVector;
+    double distance;
+} Camera;
+
+Camera cameraNew(){
+    Camera c;
+    Vec3d w, u, v;
+}
+
+
 
 /******************* OBJECTS **************************
 typedef struct{
@@ -171,7 +232,6 @@ typedef struct{
     Bool hit, entering;
     double t;
     Vec3d hitPoint;
-    Sphere* obj;
     Vec3d normal;
     Ray r;
     Color color;
@@ -180,14 +240,13 @@ typedef struct{
 /***********************************************/
 #define K_EPSILON 0.00001
 
-Intersect sphereHit(Sphere* s, Ray ray)
-{
+Intersect sphereHit(Sphere s, Ray ray){
     Intersect i;
     double t;
-    Vec3d temp = vecSubtract(ray.origin, s->center);
+    Vec3d temp = vecSubtract(ray.origin, s.center);
     double a = vecDot(ray.direction, ray.direction);
-    double b = vecScalarMultiply(vecDot(temp, ray.direction), 2.0);
-    double c = vecDot(temp, temp) - s->radius*s->radius;
+    double b = 2.0 * vecDot(temp, ray.direction);
+    double c = vecDot(temp, temp) - s.radius*s.radius;
     double disc = b * b - (4.0 * a * c);
 
     i.hit = false;
@@ -195,9 +254,8 @@ Intersect sphereHit(Sphere* s, Ray ray)
     i.t = 0.0;
     i.hitPoint = vecNew(0,0,0);
     i.normal = vecNew(0,0,0);
-    i.obj = NULL;
+    //i.obj = NULL;
     i.r = ray;
-
     //printVar(a); printVar(b); printVar(c); printVar(disc);
     if(disc < 0.0) {i.hit = false; return i;}
     else {
@@ -208,29 +266,28 @@ Intersect sphereHit(Sphere* s, Ray ray)
             i.t= t;
             i.entering = true;
             i.hit = true;
-            i.obj = s;
-            i.c = s->c;
+            //i.obj = s;
+            i.color = s.c;
             //i.m = this->m;
             i.hitPoint = rayPoint(ray, t);
-            Vec3d tmp = vecNew(i.hitPoint.x - s->center,
-                               i.hitPoint.y - s->center,
-                               i.hitPoint.z - s->center);
+            Vec3d tmp = vecNew(i.hitPoint.x - s.center.x,
+                               i.hitPoint.y - s.center.y,
+                               i.hitPoint.z - s.center.z);
             i.normal = vecNormalize(tmp);
             return i;
         }
-
         t = (-b + e)/denom;
         if (t > K_EPSILON) {
             i.t= t;
             i.entering = false;
             i.hit = true;
-            i.obj = s;
-            i.c = s->c;
+            //i.obj = s;
+            i.color = s.c;
             //i.m = this->m;
             i.hitPoint = rayPoint(ray, t);
-            Vec3d tmp = vecNew(i.hitPoint.x - s->center,
-                               i.hitPoint.y - s->center,
-                               i.hitPoint.z - s->center);
+            Vec3d tmp = vecNew(i.hitPoint.x - s.center.x,
+                               i.hitPoint.y - s.center.y,
+                               i.hitPoint.z - s.center.z);
             i.normal = vecNormalize(tmp);
             return i;
         }
@@ -243,8 +300,19 @@ Intersect sphereHit(Sphere* s, Ray ray)
 
 int main(){
 
-    test_color();
+    //test_color();
 
+    ImagePPM im = imageNew(1000, 1000);
+    int i, j;
+    for(i = 0; i < im.h; i++)
+        for(j = 0; j < im.w; j++){
+            int rad = (int)sqrt((pow(i-im.h/2, 2) + pow(j-im.w/2, 2)));
+            if( rad <= 500 && rad >400)
+                imageSetPixel(im, i, j, 0, 0, 0);
+            else
+              imageSetPixel(im, i, j, 1, 1, 1);
+        }
+    imageSave(im);
     return 0;
 
 }
