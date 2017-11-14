@@ -17,3 +17,9 @@
 
 1510666112 source:/home/admin01/Documentos/Adrianno_Mestrado/Sistemas Embarcados/FPGA_Raytracer/helper.c
 
+1510680686 source:/home/admin01/Documentos/Adrianno_Mestrado/Sistemas Embarcados/FPGA_Raytracer/main.c
+	<stdio.h>
+	<stdlib.h>
+	<math.h>
+	<limits.h>
+

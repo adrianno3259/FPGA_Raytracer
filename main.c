@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <limits.h>
 //#include "helper.c"
 //#include "image.h"
 
@@ -14,7 +15,7 @@ double max3(double a, double b, double c){
     return (a>b ? (a>c? a : c) : (b>c? b : c));
 }
 
-Color newColor(double r, double g, double b)
+Color colorNew(double r, double g, double b)
 {
     Color res;
     res.r = r, res.g = g, res.b = b;
@@ -24,25 +25,25 @@ Color newColor(double r, double g, double b)
 Color colorClamp(Color c){
     Color res;
     double max = max3(c.r, c.g, c.b);
-    if(max > 1.0)   res = newColor(c.r/max, c.g/max, c.b/max);
+    if(max > 1.0)   res = colorNew(c.r/max, c.g/max, c.b/max);
     else            res = c;
     return res;
 }
 
 Color colorAdd(Color c1, Color c2){
-    return (newColor(c1.r + c2.r, c1.g + c2.g, c1.b + c2.b));
+    return (colorNew(c1.r + c2.r, c1.g + c2.g, c1.b + c2.b));
 }
 
 Color colorSubtract(Color c1, Color c2){
-    return (newColor(c1.r - c2.r, c1.g - c2.g, c1.b - c2.b));
+    return (colorNew(c1.r - c2.r, c1.g - c2.g, c1.b - c2.b));
 }
 
 Color colorMultiply(Color c1, Color c2){
-    return (newColor(c1.r * c2.r, c1.g * c2.g, c1.b * c2.b));
+    return (colorNew(c1.r * c2.r, c1.g * c2.g, c1.b * c2.b));
 }
 
 Color colorScalarMultiply(double k, Color c){
-    return newColor(c.r*k, c.g*k, c.b*k);
+    return colorNew(c.r*k, c.g*k, c.b*k);
 }
 
 Color colorDivide(Color c1, Color c2){
@@ -54,16 +55,16 @@ Color colorDivide(Color c1, Color c2){
 }
 
 Color colorPower(Color c, double p){
-    return (newColor(pow(c.r, p), pow(c.g, p), pow(c.b, p)));
+    return (colorNew(pow(c.r, p), pow(c.g, p), pow(c.b, p)));
 }
 
 void test_color(){
-    Color c1 = newColor(0.4, 0.4, 4.0), c2 = newColor(1.0, 0.0, 0.0), c3 = newColor(2, 3, 1);
+    Color c1 = colorNew(0.4, 0.4, 4.0), c2 = colorNew(1.0, 0.0, 0.0), c3 = colorNew(2, 3, 1);
     db_color(c1); db_color(c2);
     db_color(colorAdd(c1, c2));
     db_color(colorMultiply(c1, c2));
     db_color(colorClamp(c3));
-    Color div1 = newColor(0.5, 2, 1), div2 = newColor(1, 2, 4);
+    Color div1 = colorNew(0.5, 2, 1), div2 = colorNew(1, 2, 4);
     double k = 2, p = 2;
     db_color(colorScalarMultiply( k,div1));
     db_color(colorDivide(div2, div1));
@@ -162,6 +163,10 @@ void imageSetPixel(ImagePPM im, int i, int j, double r, double g, double b){
     im.pixels[i][j].b = b;
 }
 
+void imageSetPixelColor(ImagePPM im, int i, int j, Color c){
+    im.pixels[i][j] = c;
+}
+
 void imageSave(ImagePPM im)
 {
     FILE* file = fopen("image.ppm", "wb");
@@ -189,38 +194,57 @@ void imageSave(ImagePPM im)
 
 typedef struct{
     Vec3d eyePoint, lookPoint, upVector;
-    double distance;
+    Vec3d u, v, w;
+    double distance, exposureTime, pSize;
+    int hres, vres;
 } Camera;
 
-Camera cameraNew(){
+
+Camera cameraNew(int hres, int vres, Vec3d eye, Vec3d lkp, Vec3d upv, double dist, double size){
     Camera c;
-    Vec3d w, u, v;
+
+    c.eyePoint = eye, c.lookPoint = lkp,
+    c.upVector = upv, c.distance = dist,
+    c.pSize = size, c.hres = hres,
+    c.vres = vres;
+
+    c.w = vecNormalize(vecSubtract(eye, lkp));
+    c.u = vecNormalize(vecCross(upv, c.w));
+    c.v = vecCross(c.w, c.u);
+    return c;
+}
+
+Ray cameraGetRay(Camera cam, int r, int c){
+    Ray res;
+    res.origin = cam.eyePoint;
+
+    double x, y;
+    x = cam.pSize*(c - cam.hres/2),
+    y = cam.pSize*(r - cam.vres/2);
+
+    Vec3d xu = vecScalarMultiply(x, cam.u);
+    Vec3d yv = vecScalarMultiply(y, cam.v);
+    Vec3d dw = vecScalarMultiply(cam.distance, cam.w);
+    res.direction = vecAdd(xu, vecSubtract(yv, dw)); // xw + yv - dw
+    res.direction = vecNormalize(res.direction);
+    return res;
 }
 
 
 
-/******************* OBJECTS **************************
-typedef struct{
-
-} Sphere;
-
-typedef union{ plane=0, sphere, box, composite, csg } ObjectType;
-
-typedef struct{
-
-}ObjectGeometry;
-
-typedef struct{
-    Color c;
-} Object;
-*/
+/******************* OBJECTS **************************/
 
 typedef struct{
     double radius;
     Vec3d center;
-    Color c;
+    Color color;
 } Sphere;
 
+Sphere sphereNew(Vec3d center, double radius, Color c){
+    Sphere r;
+    r.center = center, r.radius = radius, r.color = c;
+    return r;
+}
 
 // INTERSECTION INFO
 
@@ -237,7 +261,6 @@ typedef struct{
     Color color;
 } Intersect;
 
-/***********************************************/
 #define K_EPSILON 0.00001
 
 Intersect sphereHit(Sphere s, Ray ray){
@@ -267,7 +290,7 @@ Intersect sphereHit(Sphere s, Ray ray){
             i.entering = true;
             i.hit = true;
             //i.obj = s;
-            i.color = s.c;
+            i.color = s.color;
             //i.m = this->m;
             i.hitPoint = rayPoint(ray, t);
             Vec3d tmp = vecNew(i.hitPoint.x - s.center.x,
@@ -282,7 +305,7 @@ Intersect sphereHit(Sphere s, Ray ray){
             i.entering = false;
             i.hit = true;
             //i.obj = s;
-            i.color = s.c;
+            i.color = s.color;
             //i.m = this->m;
             i.hitPoint = rayPoint(ray, t);
             Vec3d tmp = vecNew(i.hitPoint.x - s.center.x,
@@ -298,19 +321,51 @@ Intersect sphereHit(Sphere s, Ray ray){
 
 
 
+Color rayTrace(Ray r, Sphere scene[], int numSpheres){
+    double tmin = INT_MAX; int i, imin = -1;
+    Intersect it; Color res = colorNew(0, 0, 0); //Background color
+    for(i = 0; i < numSpheres; i++){
+        it = sphereHit(scene[i], r);
+        if(it.hit){
+            if(it.t < tmin){
+                tmin = it.t;
+                imin = i;
+                res = it.color;
+            }
+        }
+    }
+
+    return res;
+
+
+}
+
 int main(){
 
     //test_color();
 
-    ImagePPM im = imageNew(1000, 1000);
+    int IMAGE_VRES = 1000, IMAGE_HRES = 1000;
+
+    ImagePPM im = imageNew(IMAGE_HRES, IMAGE_VRES);
+    Camera cam = cameraNew(IMAGE_HRES, IMAGE_VRES, vecNew(500, 500, 500), vecNew(0,0,0), vecNew(0,0,1), 200, 1.0);
+    Sphere scene[10];
+    scene[0] = sphereNew(vecNew(0,0,0), 200, colorNew(1,0,1));
+
     int i, j;
     for(i = 0; i < im.h; i++)
         for(j = 0; j < im.w; j++){
-            int rad = (int)sqrt((pow(i-im.h/2, 2) + pow(j-im.w/2, 2)));
+
+            Ray ray = cameraGetRay(cam, i, j);
+
+            Color col = rayTrace(ray, scene, 1);
+
+            imageSetPixelColor(im, i, j, col);
+
+            /*int rad = (int)sqrt((pow(i-im.h/2, 2) + pow(j-im.w/2, 2)));
             if( rad <= 500 && rad >400)
                 imageSetPixel(im, i, j, 0, 0, 0);
             else
-              imageSetPixel(im, i, j, 1, 1, 1);
+              imageSetPixel(im, i, j, 1, 1, 1);*/
         }
     imageSave(im);
     return 0;
