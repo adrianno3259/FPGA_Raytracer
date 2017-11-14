@@ -173,8 +173,8 @@ void imageSave(ImagePPM im)
 
     fprintf(file, "P6\n%d %d\n255\n", im.w, im.h);
     //file<<'P'<<'6'<<'\n'<<im.w<<' '<<im.h<<'\n'<<'2'<<'5'<<'5'<<'\n';
-    for(int i = 0; i < im.h; i++)
-    for(int j = 0; j < im.w; j++)
+    for(int i = im.h-1; i >= 0; i--)
+    for(int j = im.w-1; j >= 0; j--)
     {
         char col[3];
         col[0] = 255*im.pixels[i][j].r;
@@ -210,6 +210,7 @@ Camera cameraNew(int hres, int vres, Vec3d eye, Vec3d lkp, Vec3d upv, double dis
 
     c.w = vecNormalize(vecSubtract(eye, lkp));
     c.u = vecNormalize(vecCross(upv, c.w));
+    //c.u = vecInvert()
     c.v = vecCross(c.w, c.u);
     return c;
 }
@@ -231,6 +232,77 @@ Ray cameraGetRay(Camera cam, int r, int c){
 }
 
 
+// INTERSECTION INFO
+
+#define true 1
+#define false 0
+typedef int Bool;
+
+typedef struct{
+    Bool hit, entering;
+    double t;
+    Vec3d hitPoint;
+    Vec3d normal;
+    Ray r;
+    Color color;
+} Intersect;
+
+
+
+/*************************** BRDF and MATERIALS ***************************/
+
+#define invPI 0.318309886183
+
+typedef struct{
+    float kd;
+    Color cd;
+} Lambertian;
+
+typedef struct{
+    float kr;
+    Color cr;
+} PerfectSpecular;
+
+typedef struct{
+    float ks, exp;
+    Color cs;
+} GlossySpecular;
+
+typedef enum { LambertianBRDF, PerfectSpecularBRDF, GlossySpecularBRDF } BRDFType;
+
+typedef struct{
+    BRDFType brdfType;
+    union{
+        Lambertian      l;
+        PerfectSpecular p;
+        GlossySpecular  g;
+    } brdfData;
+} BRDF;
+
+Color brdfF(BRDF brdf, Intersect it, Vec3d wi, Vec3d wo){
+    if(brdf.brdfType == LambertianBRDF)
+        return (brdf.brdfData.l.kd * brdf.brdfData.l.cd * invPI);
+    else
+        return colorNew(1,0,0);
+}
+
+Color brdfRho(BRDF brdf, Intersect it, Vec3d wo){
+    if(brdf.brdfType == LambertianBRDF)
+        return (brdf.brdfData.l.kd*brdf.brdfData.l.cd);
+    else
+        return colorNew(1,0,0);
+}
+
+
+
+
+/******************** MATERIALS ***********************/
+
+
+
+
+
+
 
 /******************* OBJECTS **************************/
 
@@ -246,20 +318,6 @@ Sphere sphereNew(Vec3d center, double radius, Color c){
     return r;
 }
 
-// INTERSECTION INFO
-
-#define true 1
-#define false 0
-typedef int Bool;
-
-typedef struct{
-    Bool hit, entering;
-    double t;
-    Vec3d hitPoint;
-    Vec3d normal;
-    Ray r;
-    Color color;
-} Intersect;
 
 #define K_EPSILON 0.00001
 
@@ -321,8 +379,40 @@ Intersect sphereHit(Sphere s, Ray ray){
 
 
 
-Color rayTrace(Ray r, Sphere scene[], int numSpheres){
-    double tmin = INT_MAX; int i, imin = -1;
+
+/*********************** LIGHT ***************************/
+
+
+typedef enum {AmbientLight, PointLight, DirectionalLight} LightType;
+
+typedef struct{
+    LightType type;     // type of light
+    Vec3d posDir;       // (x, y, z) Dir <- directional light, pos <- point light
+    Color color;        // (r, g, b)
+    double intensity;   // [0, 1]
+    int shadows;        // [0-1]    <- point and directional lights
+} Light;
+
+Light lightNew(LightType type, Vec3d pos_dir, Color c, double intensity, int shadows){
+    Light l;
+    l.type = type, l.posDir = pos_dir, l.color = c;
+    l.intensity = intensity, l.shadows = shadows;
+    return L;
+}
+
+Vec3d lightGetDirection(Light l, Vec3d hitPoint){
+    if(l.type == PointLight){
+        return vecNormalize(vecSubtract(l.posDir, hitPoint));
+    }else
+        return vecNew(0,0,0);
+}
+
+Color lightGetL(Light l){
+    return colorScalarMultiply(l.intensity, l.color);
+}
+
+Color rayTraceSimple(Ray r, Sphere scene[], int numSpheres){
+    double tmin = INT_MAX; int i;
     Intersect it; Color res = colorNew(0, 0, 0); //Background color
     for(i = 0; i < numSpheres; i++){
         it = sphereHit(scene[i], r);
@@ -344,12 +434,17 @@ int main(){
 
     //test_color();
 
-    int IMAGE_VRES = 1000, IMAGE_HRES = 1000;
+    const int IMAGE_VRES = 1000, IMAGE_HRES = 1000, NUM_OBJS = 10, NUM_LIGHTS = 10;
 
     ImagePPM im = imageNew(IMAGE_HRES, IMAGE_VRES);
-    Camera cam = cameraNew(IMAGE_HRES, IMAGE_VRES, vecNew(500, 500, 500), vecNew(0,0,0), vecNew(0,0,1), 200, 1.0);
+    Camera cam = cameraNew(IMAGE_HRES, IMAGE_VRES, vecNew(500, 0, 0),
+                           vecNew(0,0,0), vecNew(0,0,1), 200, 1.0);
     Sphere scene[10];
-    scene[0] = sphereNew(vecNew(0,0,0), 200, colorNew(1,0,1));
+    scene[0] = sphereNew(vecNew(0, 0, 0), 20, colorNew(1,0,1));
+    scene[1] = sphereNew(vecNew(100, 100, 100), 20, colorNew(1,0,0));
+
+    Light lights[10];
+    lights[1] = lightNew(PointLight, vecNew(10,0,20), colorNew(1,1,1), 1.0, 0);
 
     int i, j;
     for(i = 0; i < im.h; i++)
@@ -357,7 +452,7 @@ int main(){
 
             Ray ray = cameraGetRay(cam, i, j);
 
-            Color col = rayTrace(ray, scene, 1);
+            Color col = rayTraceSimple(ray, scene, 2);
 
             imageSetPixelColor(im, i, j, col);
 
