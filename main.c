@@ -293,14 +293,32 @@ Color brdfRho(BRDF brdf, Intersect it, Vec3d wo){
         return colorNew(1,0,0);
 }
 
-
-
-
 /******************** MATERIALS ***********************/
 
+typedef struct{
+    BRDF ambientBRDF;
+    BRDF diffuseBDRF;
+} Matte;
 
+typedef enum {MatteMaterial} MaterialType;
 
+typedef struct {
+    MaterialType type;
+    union{
+        Matte m;
+    } materialData;
+} Material;
 
+Material materialNew(MaterialType type, Color cd, Color cs, Color cr){
+    Material res;
+    if(type == MatteMaterial){
+        BRDF ambient, diffuse;
+        ambient.brdfType = diffuse.brdfType = LambertianBRDF;
+        ambient.brdfData.l.kd = 0.25, diffuse.brdfData.l.kd = 0.65;
+        ambient.brdfData.l.cd = ambient.brdfData.l.cd = cd;
+        return res;
+    }
+}
 
 
 
@@ -317,7 +335,6 @@ Sphere sphereNew(Vec3d center, double radius, Color c){
     r.center = center, r.radius = radius, r.color = c;
     return r;
 }
-
 
 #define K_EPSILON 0.00001
 
@@ -377,11 +394,10 @@ Intersect sphereHit(Sphere s, Ray ray){
     return i;
 }
 
-
+Sphere scene[10];
 
 
 /*********************** LIGHT ***************************/
-
 
 typedef enum {AmbientLight, PointLight, DirectionalLight} LightType;
 
@@ -411,6 +427,21 @@ Color lightGetL(Light l){
     return colorScalarMultiply(l.intensity, l.color);
 }
 
+const int N_LIGHTS = 10
+Light lights[N_LIGHTS];
+Light ambient;
+
+/*************************** TRACER ****************************/
+
+Color matteShade(Material m, Intersect i){
+    Vec3d wo = -i.r.direction;
+    Color L = colorMultiply(brdfRho(m.m.ambientBRDF, i, wo), lightGetL(ambient));
+    int j;
+    for(j = 0; j < N_LIGHTS; j++){
+
+    }
+}
+
 Color rayTraceSimple(Ray r, Sphere scene[], int numSpheres){
     double tmin = INT_MAX; int i;
     Intersect it; Color res = colorNew(0, 0, 0); //Background color
@@ -426,9 +457,8 @@ Color rayTraceSimple(Ray r, Sphere scene[], int numSpheres){
     }
 
     return res;
-
-
 }
+
 
 int main(){
 
@@ -439,11 +469,12 @@ int main(){
     ImagePPM im = imageNew(IMAGE_HRES, IMAGE_VRES);
     Camera cam = cameraNew(IMAGE_HRES, IMAGE_VRES, vecNew(500, 0, 0),
                            vecNew(0,0,0), vecNew(0,0,1), 200, 1.0);
-    Sphere scene[10];
+
+
     scene[0] = sphereNew(vecNew(0, 0, 0), 20, colorNew(1,0,1));
     scene[1] = sphereNew(vecNew(100, 100, 100), 20, colorNew(1,0,0));
 
-    Light lights[10];
+
     lights[1] = lightNew(PointLight, vecNew(10,0,20), colorNew(1,1,1), 1.0, 0);
 
     int i, j;
