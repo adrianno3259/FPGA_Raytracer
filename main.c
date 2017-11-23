@@ -232,12 +232,12 @@ Ray cameraGetRay(Camera cam, int r, int c){
 }
 
 
-// INTERSECTION INFO
 
 #define true 1
 #define false 0
 typedef int Bool;
 
+// INTERSECTION INFO
 typedef struct{
     Bool hit, entering;
     double t;
@@ -281,14 +281,14 @@ typedef struct{
 
 Color brdfF(BRDF brdf, Intersect it, Vec3d wi, Vec3d wo){
     if(brdf.brdfType == LambertianBRDF)
-        return (brdf.brdfData.l.kd * brdf.brdfData.l.cd * invPI);
+        return (colorScalarMultiply(brdf.brdfData.l.kd*invPI, brdf.brdfData.l.cd));
     else
         return colorNew(1,0,0);
 }
 
 Color brdfRho(BRDF brdf, Intersect it, Vec3d wo){
     if(brdf.brdfType == LambertianBRDF)
-        return (brdf.brdfData.l.kd*brdf.brdfData.l.cd);
+        return ( colorScalarMultiply(brdf.brdfData.l.kd,brdf.brdfData.l.cd));
     else
         return colorNew(1,0,0);
 }
@@ -315,7 +315,8 @@ Material materialNew(MaterialType type, Color cd, Color cs, Color cr){
         BRDF ambient, diffuse;
         ambient.brdfType = diffuse.brdfType = LambertianBRDF;
         ambient.brdfData.l.kd = 0.25, diffuse.brdfData.l.kd = 0.65;
-        ambient.brdfData.l.cd = ambient.brdfData.l.cd = cd;
+        ambient.brdfData.l.cd = diffuse.brdfData.l.cd = cd;
+        res.materialData.m.ambientBRDF = ambient, res.materialData.m.diffuseBDRF = diffuse;
         return res;
     }
 }
@@ -327,7 +328,7 @@ Material materialNew(MaterialType type, Color cd, Color cs, Color cr){
 typedef struct{
     double radius;
     Vec3d center;
-    Color color;
+    Material material;
 } Sphere;
 
 Sphere sphereNew(Vec3d center, double radius, Color c){
@@ -367,6 +368,7 @@ Intersect sphereHit(Sphere s, Ray ray){
             //i.obj = s;
             i.color = s.color;
             //i.m = this->m;
+            i.r = ray;
             i.hitPoint = rayPoint(ray, t);
             Vec3d tmp = vecNew(i.hitPoint.x - s.center.x,
                                i.hitPoint.y - s.center.y,
@@ -382,6 +384,7 @@ Intersect sphereHit(Sphere s, Ray ray){
             //i.obj = s;
             i.color = s.color;
             //i.m = this->m;
+            i.r = ray;
             i.hitPoint = rayPoint(ray, t);
             Vec3d tmp = vecNew(i.hitPoint.x - s.center.x,
                                i.hitPoint.y - s.center.y,
@@ -394,7 +397,8 @@ Intersect sphereHit(Sphere s, Ray ray){
     return i;
 }
 
-Sphere scene[10];
+#define N_OBJS 10
+Sphere scene[N_OBJS];
 
 
 /*********************** LIGHT ***************************/
@@ -413,7 +417,7 @@ Light lightNew(LightType type, Vec3d pos_dir, Color c, double intensity, int sha
     Light l;
     l.type = type, l.posDir = pos_dir, l.color = c;
     l.intensity = intensity, l.shadows = shadows;
-    return L;
+    return l;
 }
 
 Vec3d lightGetDirection(Light l, Vec3d hitPoint){
@@ -427,34 +431,61 @@ Color lightGetL(Light l){
     return colorScalarMultiply(l.intensity, l.color);
 }
 
-const int N_LIGHTS = 10
+#define N_LIGHTS 10
 Light lights[N_LIGHTS];
 Light ambient;
 
 /*************************** TRACER ****************************/
 
 Color matteShade(Material m, Intersect i){
-    Vec3d wo = -i.r.direction;
-    Color L = colorMultiply(brdfRho(m.m.ambientBRDF, i, wo), lightGetL(ambient));
+    Vec3d wo = vecInvert(i.r.direction);
+    Color L = colorMultiply(brdfRho(m.materialData.m.ambientBRDF, i, wo), lightGetL(ambient));
     int j;
     for(j = 0; j < N_LIGHTS; j++){
-
+        Vec3d wi = lightGetDirection(lights[j], i.hitPoint);
+        float ndotwi = vecDot(i.normal, wi);
+        if(ndotwi>0.0) colorAdd(L, colorScalarMultiply(ndotwi, colorAdd(brdfF(m.materialData.m.diffuseBDRF, i, wi, wo), lightGetL(lights[j]))));
     }
+    return L;
 }
 
-Color rayTraceSimple(Ray r, Sphere scene[], int numSpheres){
+
+Intersect rayHitObjects(Ray r){
+    Intersect it, res;
+    double tmin = 1000000.0;
+    int i;
+    res.hit = false;
+    for(i = 0; i < N_OBJS; i++){
+        it = sphereHit(scene[i], r);
+        if(it.hit && it.t < tmin){
+            res = it;
+            tmin = res.t;
+        }
+    }
+
+    return res;
+}
+
+Color rayTraceSimple(Ray r){
     double tmin = INT_MAX; int i;
     Intersect it; Color res = colorNew(0, 0, 0); //Background color
-    for(i = 0; i < numSpheres; i++){
+
+    it = rayHitObjects(r);
+
+    if(it.hit){
+        return matteShade(it.)
+    }
+
+    /*for(i = 0; i < numSpheres; i++){
         it = sphereHit(scene[i], r);
         if(it.hit){
             if(it.t < tmin){
                 tmin = it.t;
-                imin = i;
+                //imin = i;
                 res = it.color;
             }
         }
-    }
+    }*/
 
     return res;
 }
