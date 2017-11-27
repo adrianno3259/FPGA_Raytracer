@@ -2,10 +2,14 @@
 #include <stdlib.h>
 #include <math.h>
 #include <limits.h>
-//#include "helper.c"
-//#include "image.h"
 
 #define db_color(A) fprintf(stderr, "%s = (%f, %f, %f)\n", #A, A.r, A.g, A.b)
+#define PC(A) printf("%s = (%f, %f, %f)\n", #A, A.r, A.g, A.b)
+#define PV(A) printf("%s = (%f, %f, %f)\n", #A, A.x, A.y, A.z)
+
+#define true 1
+#define false 0
+typedef int Bool;
 
 typedef struct {
     double r, g, b;
@@ -15,8 +19,7 @@ double max3(double a, double b, double c){
     return (a>b ? (a>c? a : c) : (b>c? b : c));
 }
 
-Color colorNew(double r, double g, double b)
-{
+Color colorNew(double r, double g, double b){
     Color res;
     res.r = r, res.g = g, res.b = b;
     return res;
@@ -74,7 +77,7 @@ void test_color(){
 /************************************ VECTOR ************************************/
 
 typedef struct{
-    double x, y, z;
+    float x, y, z;
 } Vec3d;
 
 Vec3d vecNew(double x, double y, double z){
@@ -139,9 +142,7 @@ Vec3d rayPoint(Ray r, double t){
     return vecAdd(r.origin, vecScalarMultiply(t, r.direction));
 }
 
-
 /*************************** IMAGE ***********************************/
-
 
 typedef struct{
     int w, h;
@@ -167,30 +168,22 @@ void imageSetPixelColor(ImagePPM im, int i, int j, Color c){
     im.pixels[i][j] = c;
 }
 
-void imageSave(ImagePPM im)
-{
+void imageSave(ImagePPM im){
+    int i, j;
     FILE* file = fopen("image.ppm", "wb");
-
     fprintf(file, "P6\n%d %d\n255\n", im.w, im.h);
-    //file<<'P'<<'6'<<'\n'<<im.w<<' '<<im.h<<'\n'<<'2'<<'5'<<'5'<<'\n';
-    for(int i = im.h-1; i >= 0; i--)
-    for(int j = im.w-1; j >= 0; j--)
-    {
+    for(i = im.h-1; i >= 0; i--)
+    for(j = im.w-1; j >= 0; j--){
         char col[3];
         col[0] = 255*im.pixels[i][j].r;
         col[1] = 255*im.pixels[i][j].g;
         col[2] = 255*im.pixels[i][j].b;
-
         fwrite(col, sizeof(char), 3, file);
     }
     fclose(file);
 }
 
-
-
-
 /********************* CAMERA **************************/
-
 
 typedef struct{
     Vec3d eyePoint, lookPoint, upVector;
@@ -202,15 +195,12 @@ typedef struct{
 
 Camera cameraNew(int hres, int vres, Vec3d eye, Vec3d lkp, Vec3d upv, double dist, double size){
     Camera c;
-
     c.eyePoint = eye, c.lookPoint = lkp,
     c.upVector = upv, c.distance = dist,
     c.pSize = size, c.hres = hres,
     c.vres = vres;
-
     c.w = vecNormalize(vecSubtract(eye, lkp));
     c.u = vecNormalize(vecCross(upv, c.w));
-    //c.u = vecInvert()
     c.v = vecCross(c.w, c.u);
     return c;
 }
@@ -231,12 +221,6 @@ Ray cameraGetRay(Camera cam, int r, int c){
     return res;
 }
 
-
-
-#define true 1
-#define false 0
-typedef int Bool;
-
 // INTERSECTION INFO
 typedef struct{
     Bool hit, entering;
@@ -244,10 +228,9 @@ typedef struct{
     Vec3d hitPoint;
     Vec3d normal;
     Ray r;
-    Color color;
+    Color color;            // resíduo
+    unsigned long int id;   // para acessar o material
 } Intersect;
-
-
 
 /*************************** BRDF and MATERIALS ***************************/
 
@@ -321,19 +304,143 @@ Material materialNew(MaterialType type, Color cd, Color cs, Color cr){
     }
 }
 
-
-
 /******************* OBJECTS **************************/
 
+int NEXT_ID = 0;
+
+#define PM(M) printf("matrix %s ----\n", #M); for(i = 0; i < 4; i++){ for(j = 0; j < 4; j++) printf("%lf ", M.data[i][j]); printf("\n"); }
+
 typedef struct{
+    double data[4][4];
+} TransformationMatrix;
+
+TransformationMatrix matrixNewIdentity(){
+    TransformationMatrix res;
+    int i, j;
+    for(i = 0; i < 4; i++) for(j = 0; j < 4; j++)
+        if(i == j) res.data[i][j] = 1; else res.data[i][j] = 0;
+    return res;
+}
+
+Vec3d transformPoint(TransformationMatrix m, Vec3d p){
+    return vecNew(m.data[0][0]*p.x + m.data[0][1]*p.y + m.data[0][2]*p.z + m.data[0][3],
+                  m.data[1][0]*p.x + m.data[1][1]*p.y + m.data[1][2]*p.z + m.data[1][3],
+                  m.data[2][0]*p.x + m.data[2][1]*p.y + m.data[2][2]*p.z + m.data[2][3]);
+}
+
+Vec3d transformDirection(TransformationMatrix m, Vec3d p){
+    return vecNew(m.data[0][0]*p.x + m.data[0][1]*p.y + m.data[0][2]*p.z,
+                  m.data[1][0]*p.x + m.data[1][1]*p.y + m.data[1][2]*p.z,
+                  m.data[2][0]*p.x + m.data[2][1]*p.y + m.data[2][2]*p.z);
+}
+
+Vec3d transformNormal(TransformationMatrix m, Vec3d p){
+    return vecNew(m.data[0][0]*p.x + m.data[1][0]*p.y + m.data[2][0]*p.z,
+                  m.data[0][1]*p.x + m.data[1][1]*p.y + m.data[2][1]*p.z,
+                  m.data[0][2]*p.x + m.data[1][2]*p.y + m.data[2][2]*p.z);
+}
+
+TransformationMatrix matrixMultiply(TransformationMatrix m1, TransformationMatrix m2){
+    TransformationMatrix res;
+    int i, j, k;
+
+    for(i = 0; i < 4; i++)
+    for(j = 0; j < 4; j++)
+    for(k = 0; k < 4; k++)
+        res.data[i][j] += m1.data[i][k] * m2.data[k][j];
+    return res;
+}
+
+#define PI 3.141592653589793
+
+#define TRANSFORMATION_ROTATION_X 0
+#define TRANSFORMATION_ROTATION_Y 1
+#define TRANSFORMATION_ROTATION_Z 2
+
+TransformationMatrix matrixGenerateInverseSingleRotation(int axis, double deg){
+    TransformationMatrix res = matrixNewIdentity();
+    double degrees = (deg*PI)/180;
+    if(degrees != 0){
+        if(axis == TRANSFORMATION_ROTATION_X)
+            res.data[1][1] = cos(-degrees), res.data[1][2] = -sin(-degrees),
+            res.data[2][1] = sin(-degrees), res.data[2][2] = cos(-degrees);
+        else if(axis == TRANSFORMATION_ROTATION_Y)
+            res.data[0][0] = cos(-degrees), res.data[0][2] = sin(-degrees),
+            res.data[2][0] = -sin(-degrees), res.data[2][2] = cos(-degrees);
+        else if(axis == TRANSFORMATION_ROTATION_Z)
+            res.data[0][0] = cos(-degrees), res.data[0][1] = -sin(-degrees),
+            res.data[1][0] = sin(-degrees), res.data[1][1] = cos(-degrees);
+    }
+    return res;
+}
+
+TransformationMatrix matrixGenerateInverseTranslation(double tx, double ty, double tz){
+    TransformationMatrix res = matrixNewIdentity();
+    res.data[0][3] = -tx, res.data[1][3] = -ty, res.data[2][3] = -tz;
+    return res;
+}
+
+TransformationMatrix matrixGenerateInverseGlobalScale(double sx, double sy, double sz){
+    TransformationMatrix res = matrixNewIdentity();
+    res.data[0][0] = 1/sx, res.data[1][1] = 1/sy, res.data[2][2] = 1/sz;
+    return res;
+}
+
+// Prototype
+/*
+TransformationMatrix matrixInverseLocalScale(Vec3d origin, double sx, double sy, double sz){
+    TransformationMatrix centralize, scaleChange, returnToPosition, res;
+    centralize =  matrixGenerateInverseTranslation(origin.x, origin.y, origin.z);
+    scaleChange = matrixGenerateInverseGlobalScale(sx, sy, sz);
+    returnToPosition = matrixGenerateInverseTranslation(-origin.x, -origin.y, -origin.z);
+    res = matrixMultiply(returnToPosition, scaleChange);
+    res = matrixMultiply(res, )
+}*/
+
+TransformationMatrix matrixUberTransformation(double tx, double ty, double tz,
+                                              double rx, double ry, double rz,
+                                              double sx, double sy, double sz)
+{
+    TransformationMatrix res, rotx, roty, rotz, trans, scale;
+    TransformationMatrix tmp[5];
+    /*
+    scale = matrixGenerateInverseGlobalScale(sx, sy, sz);
+    rotx = matrixGenerateInverseSingleRotation(TRANSFORMATION_ROTATION_X, rx);
+    roty = matrixGenerateInverseSingleRotation(TRANSFORMATION_ROTATION_Y, ry);
+    rotz = matrixGenerateInverseSingleRotation(TRANSFORMATION_ROTATION_Z, rz);
+    trans = matrixGenerateInverseTranslation(tx, ty, tz);
+    */
+
+    tmp[0] = matrixGenerateInverseGlobalScale(sx, sy, sz);
+    tmp[1] = matrixGenerateInverseSingleRotation(TRANSFORMATION_ROTATION_X, rx);
+    tmp[2] = matrixGenerateInverseSingleRotation(TRANSFORMATION_ROTATION_Y, ry);
+    tmp[3] = matrixGenerateInverseSingleRotation(TRANSFORMATION_ROTATION_Z, rz);
+    tmp[4] = matrixGenerateInverseTranslation(tx, ty, tz);
+    res = tmp[0];
+
+    int i, j;
+    PM(tmp[i])
+    for(i = 1; i < 5; i++)
+        {PM(tmp[i]); res = matrixMultiply(res, tmp[i]);}
+    return res;
+}
+
+typedef struct{
+    unsigned long int id;
     double radius;
     Vec3d center;
     Material material;
+    TransformationMatrix transformation;
+    Bool transform;
 } Sphere;
 
-Sphere sphereNew(Vec3d center, double radius, Color c){
+Sphere sphereNew(Vec3d center, double radius, Color diffuseColor, Bool transform){
     Sphere r;
-    r.center = center, r.radius = radius, r.color = c;
+    r.id = NEXT_ID;
+    r.center = center, r.radius = radius;
+    r.material = materialNew(MatteMaterial, diffuseColor, colorNew(0,0,0),colorNew(0,0,0) );
+    r.transformation = matrixNewIdentity();
+    r.transform = transform;
     return r;
 }
 
@@ -342,6 +449,12 @@ Sphere sphereNew(Vec3d center, double radius, Color c){
 Intersect sphereHit(Sphere s, Ray ray){
     Intersect i;
     double t;
+
+    if(s.transform){
+        ray.origin = transformPoint(s.transformation, ray.origin);
+        ray.direction = transformDirection(s.transformation, ray.direction);
+    }
+
     Vec3d temp = vecSubtract(ray.origin, s.center);
     double a = vecDot(ray.direction, ray.direction);
     double b = 2.0 * vecDot(temp, ray.direction);
@@ -353,9 +466,7 @@ Intersect sphereHit(Sphere s, Ray ray){
     i.t = 0.0;
     i.hitPoint = vecNew(0,0,0);
     i.normal = vecNew(0,0,0);
-    //i.obj = NULL;
     i.r = ray;
-    //printVar(a); printVar(b); printVar(c); printVar(disc);
     if(disc < 0.0) {i.hit = false; return i;}
     else {
         double e = sqrt(disc);
@@ -365,15 +476,15 @@ Intersect sphereHit(Sphere s, Ray ray){
             i.t= t;
             i.entering = true;
             i.hit = true;
-            //i.obj = s;
-            i.color = s.color;
-            //i.m = this->m;
             i.r = ray;
             i.hitPoint = rayPoint(ray, t);
             Vec3d tmp = vecNew(i.hitPoint.x - s.center.x,
                                i.hitPoint.y - s.center.y,
                                i.hitPoint.z - s.center.z);
-            i.normal = vecNormalize(tmp);
+            if(s.transform){
+                i.normal = transformNormal(s.transformation, vecNormalize(tmp));
+                i.normal = vecNormalize(i.normal);
+            }else i.normal = vecNormalize(tmp);
             return i;
         }
         t = (-b + e)/denom;
@@ -381,15 +492,15 @@ Intersect sphereHit(Sphere s, Ray ray){
             i.t= t;
             i.entering = false;
             i.hit = true;
-            //i.obj = s;
-            i.color = s.color;
-            //i.m = this->m;
             i.r = ray;
             i.hitPoint = rayPoint(ray, t);
             Vec3d tmp = vecNew(i.hitPoint.x - s.center.x,
                                i.hitPoint.y - s.center.y,
                                i.hitPoint.z - s.center.z);
-            i.normal = vecNormalize(tmp);
+            if(s.transform){
+                i.normal = transformNormal(s.transformation, vecNormalize(tmp));
+                i.normal = vecNormalize(i.normal);
+            }else i.normal = vecNormalize(tmp);
             return i;
         }
     }
@@ -397,9 +508,171 @@ Intersect sphereHit(Sphere s, Ray ray){
     return i;
 }
 
-#define N_OBJS 10
-Sphere scene[N_OBJS];
+typedef struct{
+    Vec3d v1, v2, v3, normal;
+    //Material material;
+    //Bool transform;
+} Triangle;
 
+Triangle triangleNew(Vec3d v1, Vec3d v2, Vec3d v3){
+    Triangle t;
+    t.v1 = v1, t.v2 = v2, t.v3 = v3;
+    t.normal = vecCross(vecSubtract(v2, v1), vecSubtract(v3, v1));
+    t.normal = vecNormalize(t.normal);
+    //t.material = materialNew(MatteMaterial, c, colorNew(0,0,0), colorNew(0,0,0));
+    return t;
+}
+
+Intersect triangleIntersect(Triangle t, Ray ray){
+
+    //printf("teste___\n"); fflush(stdout);
+    Intersect it;
+    it.hit = false;
+    it.entering = false;
+    it.t = 0.0;
+    it.hitPoint = vecNew(0,0,0);
+    it.normal = vecNew(0,0,0);
+    it.r = ray;
+
+    double a = t.v1.x - t.v2.x, b = t.v1.x - t.v3.x, c = ray.direction.x, d = t.v1.x - ray.origin.x;
+    double e = t.v1.y - t.v2.y, f = t.v1.y - t.v3.y, g = ray.direction.y, h = t.v1.y - ray.origin.y;
+    double i = t.v1.z - t.v2.z, j = t.v1.z - t.v3.z, k = ray.direction.z, l = t.v1.z - ray.origin.z;
+
+    double m = f*k - g*j, n = h*k - g*l, p = f*l - h*j;
+    double q = g*i - e*k, s = e*j - f*i;
+
+    double inv_denom = 1.0/(a*m + b*q + c*s);
+
+    double e1 = d*m - b*n - c*p;
+    double beta = e1*inv_denom;
+
+    if(beta < 0.0)      return it;
+
+    double r = e*l - h*i;
+    double e2 = a*n + d*q + c*r;
+    double gamma = e2 * inv_denom;
+
+    if(gamma < 0.0)         return it;
+    if(beta + gamma > 1.0)  return it;
+
+    double e3 = a*p - b*r + d*s;
+    double tmin = e3 * inv_denom;
+
+    if(tmin < K_EPSILON)    return it;
+
+    //printf("teste___\n"); fflush(stdout);
+
+    it.t = tmin;
+    it.normal = t.normal;
+    it.hit = true;
+    it.entering = true;
+    it.hitPoint = rayPoint(ray, tmin);
+
+    return it;
+}
+
+#define MAX_TRIANGLES 14000
+
+typedef struct {
+    Triangle triangles[MAX_TRIANGLES];
+    int numTriangles;
+    Material material;
+} Mesh;
+
+Mesh meshNew(Color c){
+    Mesh res;
+    res.numTriangles = 0;
+    res.material = materialNew(MatteMaterial, c, c, c);
+    return res;
+}
+
+typedef struct{
+    double x, y, z;
+} vertex;
+
+#define MAX_VERTICES 30000
+#define PT(T) PV(T.v1); PV(T.v2); PV(T.v3)
+
+Mesh meshImporter(char filename[], Color c){
+    Mesh res;
+    res.numTriangles = 0;
+    res.material = materialNew(MatteMaterial, c,c,c);
+
+
+    FILE* file = fopen(filename, "r");
+    char line[200];
+    int v_count = 0, vt_count = 0, vn_count = 0, f_count = 0;
+    Vec3d v[MAX_VERTICES], vn[MAX_VERTICES];
+    //Vec2d vt[MAX_VERTICES];
+
+    //printf("teste 1---------------\n"); fflush(stdout);
+
+
+    while(!feof(file)){
+        if(fgets(line, 100, file) == NULL) break;
+        //printf("teste---- %s -----------\n", line); fflush(stdout);
+        if(line[0] == 'v'){
+            if(line[1] == ' '){ //vertex
+                sscanf(line+1, "%lf %lf %lf\n", &v[v_count].x, &v[v_count].y, &v[v_count].z);
+                //if(v_count % 5000 == 0) PV3(v[v_count]);
+                v_count++;
+            } else if(line[1] == 'n'){
+                sscanf(line+2, "%lf %lf %lf\n", &vn[vn_count].x, &vn[vn_count].y, &vn[vn_count].z);
+                //if(vn_count % 5000 == 0) PV3(vn[vn_count]);
+                vn_count++;
+            }else if(line[1] == 't'){
+                //sscanf(line+2, "%lf %lf\n", &vt[vt_count].x, &vt[vt_count].y);
+                //if(vt_count % 5000 == 0) PV2(vt[vt_count]);
+                vt_count++;
+            }
+
+        }else if(line[0] == 'f'){
+            //printf("%s\n",line);
+            if(res.numTriangles<MAX_TRIANGLES){
+                int a, b, c, d, e, f, g, h, i;
+                sscanf(line+1, "%d/%d/%d %d/%d/%d %d/%d/%d\n", &a,&b,&c,&d,&e,&f,&g,&h,&i);
+                res.triangles[res.numTriangles] = triangleNew(v[a], v[d], v[g]);
+                res.numTriangles++;
+            }
+            f_count++;
+            //printf("%d/%d/%d nt: %d\n", a,d,g,res.numTriangles);
+        }
+    }
+
+    printf("Counts:\nv: %d, vt: %d, vn: %d\n", v_count, vt_count, vn_count);
+    printf("triangle number: %d  triangles in file %d\n", res.numTriangles, f_count);
+    fclose(file);
+    return res;
+}
+
+Intersect meshHit(Mesh mesh, Ray ray){
+    //printf("teste_hit_enter_\n"); fflush(stdout);
+    Intersect it, itMin;
+    itMin.hit = false;
+    double tmin = 10000000.;
+    int i;
+
+    for(i = 0; i < mesh.numTriangles; i++){
+        //printf("teste_triangle_intersect_\n"); fflush(stdout);
+        it = triangleIntersect(mesh.triangles[i], ray);
+        //printf("teste_triangle_end_\n"); fflush(stdout);
+        if(it.hit && it.t < tmin)
+            itMin = it, tmin = it.t;
+    }
+    //printf("teste_hit_out_\n"); fflush(stdout);
+    return itMin;
+}
+
+Intersect meshIntersect(Mesh m, Ray r){
+    Intersect it;
+    it.hit = false;
+    return it;
+}
+
+#define N_OBJS 1
+Mesh scene_m[N_OBJS];
+Triangle scene_t[N_OBJS];
+Sphere scene[N_OBJS];
 
 /*********************** LIGHT ***************************/
 
@@ -431,11 +704,13 @@ Color lightGetL(Light l){
     return colorScalarMultiply(l.intensity, l.color);
 }
 
-#define N_LIGHTS 10
+#define N_LIGHTS 1
 Light lights[N_LIGHTS];
 Light ambient;
 
 /*************************** TRACER ****************************/
+
+Color background;
 
 Color matteShade(Material m, Intersect i){
     Vec3d wo = vecInvert(i.r.direction);
@@ -443,89 +718,71 @@ Color matteShade(Material m, Intersect i){
     int j;
     for(j = 0; j < N_LIGHTS; j++){
         Vec3d wi = lightGetDirection(lights[j], i.hitPoint);
-        float ndotwi = vecDot(i.normal, wi);
-        if(ndotwi>0.0) colorAdd(L, colorScalarMultiply(ndotwi, colorAdd(brdfF(m.materialData.m.diffuseBDRF, i, wi, wo), lightGetL(lights[j]))));
+        double ndotwi = vecDot(i.normal, wi);
+        if(ndotwi>0.0) L = colorAdd(L, colorScalarMultiply(ndotwi, colorAdd(brdfF(m.materialData.m.diffuseBDRF, i, wi, wo), lightGetL(lights[j]))));
     }
-    return L;
+    return colorClamp(L);
 }
-
 
 Intersect rayHitObjects(Ray r){
     Intersect it, res;
     double tmin = 1000000.0;
-    int i;
+    int i, id = 0;
     res.hit = false;
     for(i = 0; i < N_OBJS; i++){
-        it = sphereHit(scene[i], r);
+        it = meshHit(scene_m[i], r);
         if(it.hit && it.t < tmin){
             res = it;
             tmin = res.t;
+            id = i;
         }
     }
-
+    res.id = id;
     return res;
 }
 
 Color rayTraceSimple(Ray r){
     double tmin = INT_MAX; int i;
-    Intersect it; Color res = colorNew(0, 0, 0); //Background color
-
+    Intersect it; Color res = colorNew(0.3, 0.3, 0.3);
     it = rayHitObjects(r);
-
-    if(it.hit){
-        return matteShade(it.)
-    }
-
-    /*for(i = 0; i < numSpheres; i++){
-        it = sphereHit(scene[i], r);
-        if(it.hit){
-            if(it.t < tmin){
-                tmin = it.t;
-                //imin = i;
-                res = it.color;
-            }
-        }
-    }*/
-
+    if(it.hit){ res = matteShade(scene_m[it.id].material, it);}// PC(res);}
+    //else  res = background;
+    //PC(background);
+    //PC(res);
     return res;
 }
 
-
 int main(){
-
-    //test_color();
-
-    const int IMAGE_VRES = 1000, IMAGE_HRES = 1000, NUM_OBJS = 10, NUM_LIGHTS = 10;
+    const int IMAGE_VRES = 600, IMAGE_HRES = 600, NUM_OBJS = 10, NUM_LIGHTS = 10;
 
     ImagePPM im = imageNew(IMAGE_HRES, IMAGE_VRES);
-    Camera cam = cameraNew(IMAGE_HRES, IMAGE_VRES, vecNew(500, 0, 0),
+    Camera cam = cameraNew(IMAGE_HRES, IMAGE_VRES, vecNew(100, 0, 0),
                            vecNew(0,0,0), vecNew(0,0,1), 200, 1.0);
 
+    background = colorNew(0.1, 0.1, 0.1);
+    scene[0] = sphereNew(vecNew(0, 0, 0), 10, colorNew(1,0,1), true);
+    scene[0].transformation = matrixGenerateInverseGlobalScale(1, 2, 3);
+    scene[1] = sphereNew(vecNew(0, 40, -40), 20, colorNew(1,0,0), false);
 
-    scene[0] = sphereNew(vecNew(0, 0, 0), 20, colorNew(1,0,1));
-    scene[1] = sphereNew(vecNew(100, 100, 100), 20, colorNew(1,0,0));
+    scene_m[0] = meshImporter("teddy.obj", colorNew(1, 0, 0));
+    //meshNew(colorNew(1,0,1));
+    //scene_m[0].triangles[0] = triangleNew(vecNew(-10,-10,0), vecNew(0, 10, 0), vecNew(0,0,10), colorNew(1,0,0));
+    //scene_m[0].triangles[1] = triangleNew(vecNew(-10,-30,30), vecNew(0, 10, 30), vecNew(0,0,40), colorNew(1,0,0));
+    //scene_m[0].numTriangles = 2;
 
-
-    lights[1] = lightNew(PointLight, vecNew(10,0,20), colorNew(1,1,1), 1.0, 0);
-
+    lights[0] = lightNew(PointLight, vecNew(100,40,0), colorNew(1,1,1), 0.8, 0);
+    ambient = lightNew(AmbientLight, vecNew(0,0,0), colorNew(1,1,1), 0.1, 0);
     int i, j;
     for(i = 0; i < im.h; i++)
         for(j = 0; j < im.w; j++){
-
             Ray ray = cameraGetRay(cam, i, j);
-
-            Color col = rayTraceSimple(ray, scene, 2);
-
+            //printf("teste___\n"); fflush(stdout);
+            Color col = rayTraceSimple(ray);
+            //printf("teste___\n"); fflush(stdout);
             imageSetPixelColor(im, i, j, col);
-
-            /*int rad = (int)sqrt((pow(i-im.h/2, 2) + pow(j-im.w/2, 2)));
-            if( rad <= 500 && rad >400)
-                imageSetPixel(im, i, j, 0, 0, 0);
-            else
-              imageSetPixel(im, i, j, 1, 1, 1);*/
         }
     imageSave(im);
-    return 0;
 
+    return 0;
 }
 
