@@ -262,16 +262,26 @@ typedef struct{
     } brdfData;
 } BRDF;
 
+#define PDouble(A) printf("%s = %f\n", #A, A);
+#define P_BRDF(A) printf("%s ---- \n", #A); PDouble(A.brdfData.l.kd); PC(A.brdfData.l.cd);
+
 Color brdfF(BRDF brdf, Intersect it, Vec3d wi, Vec3d wo){
-    if(brdf.brdfType == LambertianBRDF)
-        return (colorScalarMultiply(brdf.brdfData.l.kd*invPI, brdf.brdfData.l.cd));
+    if(brdf.brdfType == LambertianBRDF){
+        //P_BRDF(brdf)
+        Color res =(colorScalarMultiply(brdf.brdfData.l.kd, brdf.brdfData.l.cd));
+        //PC(res);
+        return res;
+    }
     else
         return colorNew(1,0,0);
 }
 
 Color brdfRho(BRDF brdf, Intersect it, Vec3d wo){
-    if(brdf.brdfType == LambertianBRDF)
+    if(brdf.brdfType == LambertianBRDF){
+        //printf("%s = %f\n", "brdf.kd", brdf.brdfData.l.kd);
+        //PC(brdf.brdfData.l.cd);
         return ( colorScalarMultiply(brdf.brdfData.l.kd,brdf.brdfData.l.cd));
+    }
     else
         return colorNew(1,0,0);
 }
@@ -282,6 +292,8 @@ typedef struct{
     BRDF ambientBRDF;
     BRDF diffuseBDRF;
 } Matte;
+
+#define PMatte(M) printf("%s----\n", #M); P_BRDF(M.materialData.m.ambientBDRF); P_BRDF(M.materialData.m.diffuseBRDF)
 
 typedef enum {MatteMaterial} MaterialType;
 
@@ -300,6 +312,8 @@ Material materialNew(MaterialType type, Color cd, Color cs, Color cr){
         ambient.brdfData.l.kd = 0.25, diffuse.brdfData.l.kd = 0.65;
         ambient.brdfData.l.cd = diffuse.brdfData.l.cd = cd;
         res.materialData.m.ambientBRDF = ambient, res.materialData.m.diffuseBDRF = diffuse;
+        P_BRDF(res.materialData.m.ambientBRDF); P_BRDF(res.materialData.m.diffuseBDRF);
+        //PMatte(res);
         return res;
     }
 }
@@ -571,18 +585,21 @@ Intersect triangleIntersect(Triangle t, Ray ray){
     return it;
 }
 
-#define MAX_TRIANGLES 14000
+#define MAX_TRIANGLES 21000
 
 typedef struct {
     Triangle triangles[MAX_TRIANGLES];
     int numTriangles;
     Material material;
+    TransformationMatrix transformation;
+    Bool transform;
 } Mesh;
 
 Mesh meshNew(Color c){
     Mesh res;
     res.numTriangles = 0;
     res.material = materialNew(MatteMaterial, c, c, c);
+    P_BRDF(res.material.materialData.m.ambientBRDF); P_BRDF(res.material.materialData.m.diffuseBDRF);
     return res;
 }
 
@@ -609,15 +626,16 @@ Mesh meshImporter(char filename[], Color c){
 
 
     while(!feof(file)){
-        if(fgets(line, 100, file) == NULL) break;
-        //printf("teste---- %s -----------\n", line); fflush(stdout);
+        if(fgets(line, 200, file) == NULL) break;
+        printf("teste---- %s -----------\n", line); fflush(stdout);
         if(line[0] == 'v'){
             if(line[1] == ' '){ //vertex
-                sscanf(line+1, "%lf %lf %lf\n", &v[v_count].x, &v[v_count].y, &v[v_count].z);
+                sscanf(line+1, "%f %f %f\n", &v[v_count].x, &v[v_count].y, &v[v_count].z);
+                PV(v[v_count]);
                 //if(v_count % 5000 == 0) PV3(v[v_count]);
                 v_count++;
             } else if(line[1] == 'n'){
-                sscanf(line+2, "%lf %lf %lf\n", &vn[vn_count].x, &vn[vn_count].y, &vn[vn_count].z);
+                sscanf(line+2, "%f %f %f\n", &vn[vn_count].x, &vn[vn_count].y, &vn[vn_count].z);
                 //if(vn_count % 5000 == 0) PV3(vn[vn_count]);
                 vn_count++;
             }else if(line[1] == 't'){
@@ -630,14 +648,21 @@ Mesh meshImporter(char filename[], Color c){
             //printf("%s\n",line);
             if(res.numTriangles<MAX_TRIANGLES){
                 int a, b, c, d, e, f, g, h, i;
-                sscanf(line+1, "%d/%d/%d %d/%d/%d %d/%d/%d\n", &a,&b,&c,&d,&e,&f,&g,&h,&i);
-                res.triangles[res.numTriangles] = triangleNew(v[a], v[d], v[g]);
+                sscanf(line+1, "%d/%d/%d %d/%d/%d %d/%d/%d\n", &a,&g,&h,&b,&e,&f,&c,&h,&i);
+                //sscanf(line+1, "%d %d %d\n", &a,&b,&c);
+                //printf("%s -----\na, d, g = %d, %d, %d\n", line+1, a, d, g);
+                PV(v[a-1]); PV(v[b-1]); PV(v[c-1]);
+                res.triangles[res.numTriangles] = triangleNew(v[a-1], v[b-1], v[c-1]);
+                //PT(res.triangles[res.numTriangles]);
                 res.numTriangles++;
             }
             f_count++;
             //printf("%d/%d/%d nt: %d\n", a,d,g,res.numTriangles);
         }
     }
+
+    int i;
+    //for(i = 0; i < v_count; i++) PV(v[i]);
 
     printf("Counts:\nv: %d, vt: %d, vn: %d\n", v_count, vt_count, vn_count);
     printf("triangle number: %d  triangles in file %d\n", res.numTriangles, f_count);
@@ -646,6 +671,12 @@ Mesh meshImporter(char filename[], Color c){
 }
 
 Intersect meshHit(Mesh mesh, Ray ray){
+
+    if(mesh.transform){
+        ray.origin = transformPoint(mesh.transformation, ray.origin);
+        ray.direction = transformDirection(mesh.transformation, ray.direction);
+    }
+
     //printf("teste_hit_enter_\n"); fflush(stdout);
     Intersect it, itMin;
     itMin.hit = false;
@@ -660,14 +691,11 @@ Intersect meshHit(Mesh mesh, Ray ray){
             itMin = it, tmin = it.t;
     }
     //printf("teste_hit_out_\n"); fflush(stdout);
+    itMin.normal = transformNormal(mesh.transformation, itMin.normal);
     return itMin;
 }
 
-Intersect meshIntersect(Mesh m, Ray r){
-    Intersect it;
-    it.hit = false;
-    return it;
-}
+
 
 #define N_OBJS 1
 Mesh scene_m[N_OBJS];
@@ -743,7 +771,7 @@ Intersect rayHitObjects(Ray r){
 
 Color rayTraceSimple(Ray r){
     double tmin = INT_MAX; int i;
-    Intersect it; Color res = colorNew(0.3, 0.3, 0.3);
+    Intersect it; Color res = colorNew(0.1, 0.1, 0.1);
     it = rayHitObjects(r);
     if(it.hit){ res = matteShade(scene_m[it.id].material, it);}// PC(res);}
     //else  res = background;
@@ -753,10 +781,10 @@ Color rayTraceSimple(Ray r){
 }
 
 int main(){
-    const int IMAGE_VRES = 600, IMAGE_HRES = 600, NUM_OBJS = 10, NUM_LIGHTS = 10;
-
+    const int IMAGE_VRES = 800, IMAGE_HRES = 800;// NUM_OBJS = 10, NUM_LIGHTS = 10;
+    int i, j;
     ImagePPM im = imageNew(IMAGE_HRES, IMAGE_VRES);
-    Camera cam = cameraNew(IMAGE_HRES, IMAGE_VRES, vecNew(100, 0, 0),
+    Camera cam = cameraNew(IMAGE_HRES, IMAGE_VRES, vecNew(2, 2, 2),
                            vecNew(0,0,0), vecNew(0,0,1), 200, 1.0);
 
     background = colorNew(0.1, 0.1, 0.1);
@@ -764,15 +792,29 @@ int main(){
     scene[0].transformation = matrixGenerateInverseGlobalScale(1, 2, 3);
     scene[1] = sphereNew(vecNew(0, 40, -40), 20, colorNew(1,0,0), false);
 
-    scene_m[0] = meshImporter("teddy.obj", colorNew(1, 0, 0));
-    //meshNew(colorNew(1,0,1));
-    //scene_m[0].triangles[0] = triangleNew(vecNew(-10,-10,0), vecNew(0, 10, 0), vecNew(0,0,10), colorNew(1,0,0));
-    //scene_m[0].triangles[1] = triangleNew(vecNew(-10,-30,30), vecNew(0, 10, 30), vecNew(0,0,40), colorNew(1,0,0));
-    //scene_m[0].numTriangles = 2;
+    scene_m[0] = meshImporter("albertosaurus.obj", colorNew(1, 0, 0));
 
-    lights[0] = lightNew(PointLight, vecNew(100,40,0), colorNew(1,1,1), 0.8, 0);
+    scene_m[0].transform = true;
+    scene_m[0].transformation = matrixGenerateInverseSingleRotation(TRANSFORMATION_ROTATION_X, 90);
+
+    printf("triangulos cubo:\n");
+    for(i = 0; i < scene_m[0].numTriangles; i++){
+        //PT(scene_m[0].triangles[i]);
+    }
+
+
+/*
+    scene_m[0] = meshNew(colorNew(1,0,0));
+    scene_m[0].triangles[0] = triangleNew(vecNew(-10,-10,0), vecNew(0, 10, 0), vecNew(0,0,10));
+    scene_m[0].triangles[1] = triangleNew(vecNew(-10,-30,30), vecNew(0, 10, 30), vecNew(0,0,40));
+    scene_m[0].numTriangles = 2;*/
+
+
+
+    lights[0] = lightNew(PointLight, vecNew(100,40,0), colorNew(1,1,1), .3, 0);
     ambient = lightNew(AmbientLight, vecNew(0,0,0), colorNew(1,1,1), 0.1, 0);
-    int i, j;
+
+
     for(i = 0; i < im.h; i++)
         for(j = 0; j < im.w; j++){
             Ray ray = cameraGetRay(cam, i, j);
