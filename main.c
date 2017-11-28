@@ -585,7 +585,7 @@ Intersect triangleIntersect(Triangle t, Ray ray){
     return it;
 }
 
-#define MAX_TRIANGLES 21000
+#define MAX_TRIANGLES 14000
 
 typedef struct {
     Triangle triangles[MAX_TRIANGLES];
@@ -648,8 +648,8 @@ Mesh meshImporter(char filename[], Color c){
             //printf("%s\n",line);
             if(res.numTriangles<MAX_TRIANGLES){
                 int a, b, c, d, e, f, g, h, i;
-                sscanf(line+1, "%d/%d/%d %d/%d/%d %d/%d/%d\n", &a,&g,&h,&b,&e,&f,&c,&h,&i);
-                //sscanf(line+1, "%d %d %d\n", &a,&b,&c);
+                //sscanf(line+1, "%d/%d/%d %d/%d/%d %d/%d/%d\n", &a,&g,&h,&b,&e,&f,&c,&h,&i);
+                sscanf(line+1, "%d %d %d\n", &a,&b,&c);
                 //printf("%s -----\na, d, g = %d, %d, %d\n", line+1, a, d, g);
                 PV(v[a-1]); PV(v[b-1]); PV(v[c-1]);
                 res.triangles[res.numTriangles] = triangleNew(v[a-1], v[b-1], v[c-1]);
@@ -781,10 +781,10 @@ Color rayTraceSimple(Ray r){
 }
 
 int main(){
-    const int IMAGE_VRES = 800, IMAGE_HRES = 800;// NUM_OBJS = 10, NUM_LIGHTS = 10;
+    const int IMAGE_VRES = 500, IMAGE_HRES = 500;// NUM_OBJS = 10, NUM_LIGHTS = 10;
     int i, j;
     ImagePPM im = imageNew(IMAGE_HRES, IMAGE_VRES);
-    Camera cam = cameraNew(IMAGE_HRES, IMAGE_VRES, vecNew(2, 2, 2),
+    Camera cam = cameraNew(IMAGE_HRES, IMAGE_VRES, vecNew(60, 0, 60),
                            vecNew(0,0,0), vecNew(0,0,1), 200, 1.0);
 
     background = colorNew(0.1, 0.1, 0.1);
@@ -792,9 +792,9 @@ int main(){
     scene[0].transformation = matrixGenerateInverseGlobalScale(1, 2, 3);
     scene[1] = sphereNew(vecNew(0, 40, -40), 20, colorNew(1,0,0), false);
 
-    scene_m[0] = meshImporter("albertosaurus.obj", colorNew(1, 0, 0));
+    scene_m[0] = meshImporter("pumpkin2.obj", colorNew(1, 0, 0));
 
-    scene_m[0].transform = true;
+    scene_m[0].transform = false;
     scene_m[0].transformation = matrixGenerateInverseSingleRotation(TRANSFORMATION_ROTATION_X, 90);
 
     printf("triangulos cubo:\n");
