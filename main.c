@@ -585,7 +585,7 @@ Intersect triangleIntersect(Triangle t, Ray ray){
     return it;
 }
 
-#define MAX_TRIANGLES 14000
+#define MAX_TRIANGLES 50000
 
 typedef struct {
     Triangle triangles[MAX_TRIANGLES];
@@ -619,7 +619,7 @@ Mesh meshImporter(char filename[], Color c){
     FILE* file = fopen(filename, "r");
     char line[200];
     int v_count = 0, vt_count = 0, vn_count = 0, f_count = 0;
-    Vec3d v[MAX_VERTICES], vn[MAX_VERTICES];
+    Vec3d v[MAX_VERTICES];//, vn[MAX_VERTICES];
     //Vec2d vt[MAX_VERTICES];
 
     //printf("teste 1---------------\n"); fflush(stdout);
@@ -627,15 +627,15 @@ Mesh meshImporter(char filename[], Color c){
 
     while(!feof(file)){
         if(fgets(line, 200, file) == NULL) break;
-        printf("teste---- %s -----------\n", line); fflush(stdout);
+        //printf("teste---- %s -----------\n", line); fflush(stdout);
         if(line[0] == 'v'){
             if(line[1] == ' '){ //vertex
                 sscanf(line+1, "%f %f %f\n", &v[v_count].x, &v[v_count].y, &v[v_count].z);
-                PV(v[v_count]);
+                //PV(v[v_count]);
                 //if(v_count % 5000 == 0) PV3(v[v_count]);
                 v_count++;
             } else if(line[1] == 'n'){
-                sscanf(line+2, "%f %f %f\n", &vn[vn_count].x, &vn[vn_count].y, &vn[vn_count].z);
+                //sscanf(line+2, "%f %f %f\n", &vn[vn_count].x, &vn[vn_count].y, &vn[vn_count].z);
                 //if(vn_count % 5000 == 0) PV3(vn[vn_count]);
                 vn_count++;
             }else if(line[1] == 't'){
@@ -651,7 +651,7 @@ Mesh meshImporter(char filename[], Color c){
                 //sscanf(line+1, "%d/%d/%d %d/%d/%d %d/%d/%d\n", &a,&g,&h,&b,&e,&f,&c,&h,&i);
                 sscanf(line+1, "%d %d %d\n", &a,&b,&c);
                 //printf("%s -----\na, d, g = %d, %d, %d\n", line+1, a, d, g);
-                PV(v[a-1]); PV(v[b-1]); PV(v[c-1]);
+                //PV(v[a-1]); PV(v[b-1]); PV(v[c-1]);
                 res.triangles[res.numTriangles] = triangleNew(v[a-1], v[b-1], v[c-1]);
                 //PT(res.triangles[res.numTriangles]);
                 res.numTriangles++;
@@ -792,7 +792,7 @@ int main(){
     scene[0].transformation = matrixGenerateInverseGlobalScale(1, 2, 3);
     scene[1] = sphereNew(vecNew(0, 40, -40), 20, colorNew(1,0,0), false);
 
-    scene_m[0] = meshImporter("pumpkin2.obj", colorNew(1, 0, 0));
+    scene_m[0] = meshImporter("albertosaurus2.obj", colorNew(1, 0, 0));
 
     scene_m[0].transform = false;
     scene_m[0].transformation = matrixGenerateInverseSingleRotation(TRANSFORMATION_ROTATION_X, 90);
