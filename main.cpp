@@ -317,24 +317,61 @@ public:
 
 class Grid{
 public:
-    Grid() : boundingBox(BBox(Vec3d(), Vec3d())){
-        //boundingBox = BBox(Vec3d(), Vec3d());
-    }
-
+    Grid(const vector<Triangle>& src) : boundingBox(BBox(Vec3d(), Vec3d())), source(src){ }
     BBox getBoundingBox(){}
-    void setup(const vector<Triangle>& tris){}
+    void setup(){
+        Vec3d p0 = minCoordinates(), p1 = maxCoordinates();
+        boundingBox.maxp = p1, boundingBox.minp = p0;
+
+
+        // obter número de voxels
+        int nObjects = source.size();
+        float wx = p1.x - p0.x, wy = p1.y - p0.y, wz = p1.z - p0.z;
+        float multiplier = 2.0;
+        float s = pow(wx*wy*wz/nObjects, 0.3333333);
+        nx = multiplier*wx/s+1;
+        ny = multiplier*wy/s+1;
+        nz = multiplier*wz/s+1;
+
+        // contagem de elementos por voxel
+        int nCells = nx*ny*nz;
+        vector<int> counts;
+        for(int i = 0; i < nCells; i++) counts.push_back(0);
+
+        BBox tmp_box;
+
+    }
 
 
 private:
     vector<Triangle> orderedCells; // Voxels com repetição de triângulos para serem enviados diretamente para a FPGA
+    vector<int> counts;
+    vector<Triangle> source;
     BBox boundingBox;
     int nx, ny, nz;
-    Vec3d minCoordinates();
-    Vec3d maxCoordinates();
+
+    inline Vec3d mergeMinPoint(Vec3d v1, Vec3d v2){
+        return Vec3d(min(v1.x, v2.x), min(v1.y, v2.y), min(v1.z, v2.z));
+    }
+
+    inline Vec3d mergeMaxPoint(Vec3d v1, Vec3d v2){
+        return Vec3d(max(v1.x, v2.x), max(v1.y, v2.y), max(v1.z, v2.z));
+    }
+
+    Vec3d minCoordinates(){
+        Vec3d tmp(1e10);
+        for(int i = 0; i < source.size(); i++)
+            tmp = mergeMinPoint(source[i].getMinPoint(), tmp);
+        return tmp;
+    }
+
+    Vec3d maxCoordinates(){
+        Vec3d tmp(-1e10);
+        for(int i = 0; i < source.size(); i++)
+            tmp = mergeMaxPoint(source[i].getMaxPoint(), tmp);
+        return tmp;
+    }
 };
-
-
-
 
 #define MAX_TRIANGLES 50000
 
