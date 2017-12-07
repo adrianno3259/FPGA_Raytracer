@@ -9,6 +9,8 @@ using namespace std;
 
 #define printVec(A) std::cout << #A << " = (" << (A).x <<", "<<(A).y<<", "<<(A).z<<")"<<std::endl
 
+#define PV(A) printf("%s = (%f, %f, %f)\n", #A, A.x, A.y, A.z)
+
 class Vec3d
 {
 public:
@@ -92,12 +94,13 @@ public:
 
     Camera(const int hres, const int vres, const Vec3d& eye, const Vec3d& lkp,
            const Vec3d& upv, const double dist, const double s){
-        setup();
+        setup(hres, vres, eye, lkp, upv, dist, s);
+
     }
 
 
     Ray getRay(int r, int c){
-        Ray res;
+        Ray res = Ray(Vec3d(), Vec3d());
         res.origin = eyePoint;
         double x, y;
         x = pSize*(c - hres/2),
@@ -105,7 +108,7 @@ public:
 
         Vec3d xu = x*u;// vecScalarMultiply(x, cam.u);
         Vec3d yv = y*v;//vecScalarMultiply(y, cam.v);
-        Vec3d dw = d*w;//vecScalarMultiply(cam.distance, cam.w);
+        Vec3d dw = distance*w;//vecScalarMultiply(cam.distance, cam.w);
         res.direction = xu + yv - dw; // xw + yv - dw
         res.direction.normalize();
         return res;
@@ -113,10 +116,11 @@ public:
 
 private:
 
-    void setup(){
+    void setup(const int hres, const int vres, const Vec3d& eye, const Vec3d& lkp,
+           const Vec3d& upv, const double dist, const double s){
         eyePoint = eye, lookPoint = lkp,
         upVector = upv, distance = dist,
-        pSize = s, hres = hres, vres = vres;
+        pSize = s, this->hres = hres, this->vres = vres;
         w = eye - lkp;
         w.normalize();
         u = upv ^ w;
@@ -242,6 +246,17 @@ public:
 };
 
 
+/**************************************  BBox ********************************************/
+
+
+class BBox{
+public:
+    Vec3d minp, maxp;
+    BBox(Vec3d v0, Vec3d v1) : minp(v0), maxp(v1){}
+};
+
+
+
 
 /************************************** TRIANGLE ****************************************/
 
@@ -253,10 +268,80 @@ public:
         normal = (v2 - v1) ^ (v3 - v1);
         normal.normalize();
     }
+
+    Vec3d getMaxPoint(){
+        Vec3d p(-1e10);
+
+        // maior coordenada de cada vértice
+
+        if(p1.x > p.x) p.x = p1.x;
+        if(p1.y > p.y) p.y = p1.y;
+        if(p1.z > p.z) p.z = p1.z;
+
+        if(p2.x > p.x) p.x = p2.x;
+        if(p2.y > p.y) p.y = p2.y;
+        if(p2.z > p.z) p.z = p2.z;
+
+        if(p3.x > p.x) p.x = p3.x;
+        if(p3.y > p.y) p.y = p3.y;
+        if(p3.z > p.z) p.z = p3.z;
+
+        return p;
+
+    }
+
+    Vec3d getMinPoint(){
+        Vec3d p(1e10);
+
+        // menor coordenada de cada pértice
+
+        if(p1.x < p.x) p.x = p1.x;
+        if(p1.y < p.y) p.y = p1.y;
+        if(p1.z < p.z) p.z = p1.z;
+
+        if(p2.x < p.x) p.x = p2.x;
+        if(p2.y < p.y) p.y = p2.y;
+        if(p2.z < p.z) p.z = p2.z;
+
+        if(p3.x < p.x) p.x = p3.x;
+        if(p3.y < p.y) p.y = p3.y;
+        if(p3.z < p.z) p.z = p3.z;
+
+        return p;
+
+    }
+
 };
 
 
+
+class Grid{
+public:
+    Grid() : boundingBox(BBox(Vec3d(), Vec3d())){
+        //boundingBox = BBox(Vec3d(), Vec3d());
+    }
+
+    BBox getBoundingBox(){}
+    void setup(const vector<Triangle>& tris){}
+
+
+private:
+    vector<Triangle> orderedCells; // Voxels com repetição de triângulos para serem enviados diretamente para a FPGA
+    BBox boundingBox;
+    int nx, ny, nz;
+    Vec3d minCoordinates();
+    Vec3d maxCoordinates();
+};
+
+
+
+
 #define MAX_TRIANGLES 50000
+
+vector<Triangle> meshes;
+vector<Material> materials;
+vector<Light> lights;
+vector<Ray> rays;
 
 // matID -> id do material
 
@@ -303,14 +388,22 @@ vector<Triangle> meshImporter(char filename[], int mID){
 
 
 
+int main(int argc, char**argv){
+
+    char* filename;
+    if(argc == 2)
+        filename = argv[1];
+    else
+        filename = "teddy.obj";
+
+    Material red_matte(Color(1,0,0),0.65, Color(),0,0,Color(),0);
+
+    //Meshes = meshImporter(filename, )
+
+    Triangle t(Vec3d(-5,0,0), Vec3d(0,0,10), Vec3d(7, 5, 2), 0);
+
+    PV(t.getMinPoint()); PV(t.getMaxPoint());
 
 
-
-int main(){
-
-
-
-
-
-
+    return 0;
 }
