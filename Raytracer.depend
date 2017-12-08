@@ -23,3 +23,13 @@
 	<math.h>
 	<limits.h>
 
+1512004987 source:/home/adrianno/Documents/Mestrado/SE/hls/FPGA_Raytracer/color.c
+
+1512004987 source:/home/adrianno/Documents/Mestrado/SE/hls/FPGA_Raytracer/helper.c
+
+1512007790 source:/home/adrianno/Documents/Mestrado/SE/hls/FPGA_Raytracer/main.c
+	<stdio.h>
+	<stdlib.h>
+	<math.h>
+	<limits.h>
+

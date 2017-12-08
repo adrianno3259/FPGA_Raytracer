@@ -648,8 +648,8 @@ Mesh meshImporter(char filename[], Color c){
             //printf("%s\n",line);
             if(res.numTriangles<MAX_TRIANGLES){
                 int a, b, c, d, e, f, g, h, i;
-                //sscanf(line+1, "%d/%d/%d %d/%d/%d %d/%d/%d\n", &a,&g,&h,&b,&e,&f,&c,&h,&i);
-                sscanf(line+1, "%d %d %d\n", &a,&b,&c);
+                sscanf(line+1, "%d/%d/%d %d/%d/%d %d/%d/%d\n", &a,&g,&h,&b,&e,&f,&c,&h,&i);
+                //sscanf(line+1, "%d %d %d\n", &a,&b,&c);
                 //printf("%s -----\na, d, g = %d, %d, %d\n", line+1, a, d, g);
                 //PV(v[a-1]); PV(v[b-1]); PV(v[c-1]);
                 res.triangles[res.numTriangles] = triangleNew(v[a-1], v[b-1], v[c-1]);
@@ -682,6 +682,7 @@ Intersect meshHit(Mesh mesh, Ray ray){
     itMin.hit = false;
     double tmin = 10000000.;
     int i;
+
 
     for(i = 0; i < mesh.numTriangles; i++){
         //printf("teste_triangle_intersect_\n"); fflush(stdout);
@@ -736,6 +737,19 @@ Color lightGetL(Light l){
 Light lights[N_LIGHTS];
 Light ambient;
 
+
+/****************************GRID ************************************/
+/*
+#define NUM_VOXELS 100
+
+typedef struct {
+    int voxelStart[]
+} Grid;
+
+
+*/
+
+
 /*************************** TRACER ****************************/
 
 Color background;
@@ -757,6 +771,7 @@ Intersect rayHitObjects(Ray r){
     double tmin = 1000000.0;
     int i, id = 0;
     res.hit = false;
+
     for(i = 0; i < N_OBJS; i++){
         it = meshHit(scene_m[i], r);
         if(it.hit && it.t < tmin){
@@ -781,11 +796,11 @@ Color rayTraceSimple(Ray r){
 }
 
 int main(){
-    const int IMAGE_VRES = 500, IMAGE_HRES = 500;// NUM_OBJS = 10, NUM_LIGHTS = 10;
+    const int IMAGE_VRES = 600, IMAGE_HRES = 600; // NUM_OBJS = 10, NUM_LIGHTS = 10;
     int i, j;
     ImagePPM im = imageNew(IMAGE_HRES, IMAGE_VRES);
-    Camera cam = cameraNew(IMAGE_HRES, IMAGE_VRES, vecNew(60, 0, 60),
-                           vecNew(0,0,0), vecNew(0,0,1), 200, 1.0);
+    Camera cam = cameraNew(IMAGE_HRES, IMAGE_VRES, vecNew(2, 3, 1),
+                           vecNew(0,1,0), vecNew(0,0,1), 200, 1.0);
 
     background = colorNew(0.1, 0.1, 0.1);
     scene[0] = sphereNew(vecNew(0, 0, 0), 10, colorNew(1,0,1), true);
@@ -794,13 +809,14 @@ int main(){
 
     scene_m[0] = meshImporter("albertosaurus2.obj", colorNew(1, 0, 0));
 
-    scene_m[0].transform = false;
-    scene_m[0].transformation = matrixGenerateInverseSingleRotation(TRANSFORMATION_ROTATION_X, 90);
+    scene_m[0].transform = true;
+    scene_m[0].transformation = matrixMultiply(matrixGenerateInverseSingleRotation(TRANSFORMATION_ROTATION_Y, 180),
+                                               matrixGenerateInverseSingleRotation(TRANSFORMATION_ROTATION_X, 90));
 
-    printf("triangulos cubo:\n");
-    for(i = 0; i < scene_m[0].numTriangles; i++){
+    //printf("triangulos cubo:\n");
+    //for(i = 0; i < scene_m[0].numTriangles; i++){
         //PT(scene_m[0].triangles[i]);
-    }
+    //}
 
 
 /*
@@ -811,10 +827,10 @@ int main(){
 
 
 
-    lights[0] = lightNew(PointLight, vecNew(100,40,0), colorNew(1,1,1), .3, 0);
+    lights[0] = lightNew(PointLight, vecNew(50,140,30), colorNew(1,1,1), .4, 0);
     ambient = lightNew(AmbientLight, vecNew(0,0,0), colorNew(1,1,1), 0.1, 0);
 
-
+    //#pragma omp parallel for schedule(dynamic)
     for(i = 0; i < im.h; i++)
         for(j = 0; j < im.w; j++){
             Ray ray = cameraGetRay(cam, i, j);
