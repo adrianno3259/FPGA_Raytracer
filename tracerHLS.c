@@ -176,7 +176,7 @@ void rayHitObjects(int rayID){
         }
     }
 }
-
+/*
 void rayHitObjectsVoxel(int rayID, int voxelID){
 
     double tmin = 1000000.0;
@@ -212,7 +212,7 @@ double max3(double a, double b, double c){
     return (a > b ? (a > c ? a : c) : (b > c ? b : c));
 }
 
-void boundingBoxHit(float minx, float miny, float minz,
+int boundingBoxHit(float minx, float miny, float minz,
                     float maxx, float maxy, float maxz, int rayID){
 
     double ox = r_data[rayID], oy = r_data[rayID+1], oz = r_data[rayID+2],
@@ -262,7 +262,6 @@ void hitGrid(int rayID){
 
 
 }
-
 
 // Salva no array global de cores o resultado do tracing
 void rayTraceSimple(int rayID){
