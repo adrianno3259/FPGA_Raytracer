@@ -534,15 +534,15 @@ int main(int argc, char**argv){
     voxel_data      = (float*) malloc(sizeof(float)*grid.counts.size());
 
     for(int i = 0; i < lights.size(); i++){
-        light_data[i*MATERIAL_ATTRIBUTE_NUMBER] = lights[i].position.x;
-        light_data[i*MATERIAL_ATTRIBUTE_NUMBER+1] = lights[i].position.y;
-        light_data[i*MATERIAL_ATTRIBUTE_NUMBER+2] = lights[i].position.z;
+        light_data[i*LIGHT_ATTRIBUTE_NUMBER] = lights[i].position.x;
+        light_data[i*LIGHT_ATTRIBUTE_NUMBER+1] = lights[i].position.y;
+        light_data[i*LIGHT_ATTRIBUTE_NUMBER+2] = lights[i].position.z;
 
-        light_data[i*MATERIAL_ATTRIBUTE_NUMBER+3] = lights[i].intensity;
+        light_data[i*LIGHT_ATTRIBUTE_NUMBER+3] = lights[i].intensity;
 
-        light_data[i*MATERIAL_ATTRIBUTE_NUMBER+4] = lights[i].color.r;
-        light_data[i*MATERIAL_ATTRIBUTE_NUMBER+5] = lights[i].color.g
-        light_data[i*MATERIAL_ATTRIBUTE_NUMBER+6] = lights[i].color.b;
+        light_data[i*LIGHT_ATTRIBUTE_NUMBER+4] = lights[i].color.r;
+        light_data[i*LIGHT_ATTRIBUTE_NUMBER+5] = lights[i].color.g
+        light_data[i*LIGHT_ATTRIBUTE_NUMBER+6] = lights[i].color.b;
     }
 
 
