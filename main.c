@@ -818,6 +818,11 @@ int main(){
         //PT(scene_m[0].triangles[i]);
     //}
 
+    Ray testRay = rayNew(vecNew(0, -1, 0), vecNew(0, 1, 0));
+    Triangle testTriangle = triangleNew(vecNew(1,2,-1), vecNew(-1, 2, -1), vecNew(0, 2, 1));
+    Intersect inter = triangleIntersect(testTriangle, testRay);
+    PV(inter.hitPoint); printf("%s %f", "inter.t", inter.t);
+
 
 /*
     scene_m[0] = meshNew(colorNew(1,0,0));
@@ -833,11 +838,11 @@ int main(){
     //#pragma omp parallel for schedule(dynamic)
     for(i = 0; i < im.h; i++)
         for(j = 0; j < im.w; j++){
-            Ray ray = cameraGetRay(cam, i, j);
+            //Ray ray = cameraGetRay(cam, i, j);
             //printf("teste___\n"); fflush(stdout);
-            Color col = rayTraceSimple(ray);
+            //Color col = rayTraceSimple(ray);
             //printf("teste___\n"); fflush(stdout);
-            imageSetPixelColor(im, i, j, col);
+            //imageSetPixelColor(im, i, j, col);
         }
     imageSave(im);
 
